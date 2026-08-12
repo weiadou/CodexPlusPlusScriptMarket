@@ -15,8 +15,7 @@ function extractFunction(source, name) {
   return extractFunctionAt(source, start);
 }
 
-function extractFunctionAt(source, start) {
-  const bodyStart = source.indexOf("{", start);
+function extractFunctionAt(source, start, bodyStart = source.indexOf("{", start)) {
   let depth = 0;
   let quote = null;
   let escaped = false;
@@ -97,7 +96,9 @@ function extractFunctionAt(source, start) {
 function extractAsyncFunction(source, name) {
   const start = source.indexOf(`async function ${name}(`);
   assert.notEqual(start, -1, `${name} was not found`);
-  return extractFunctionAt(source, start);
+  const parametersEnd = source.indexOf(")", start);
+  assert.notEqual(parametersEnd, -1, `${name} parameters were not closed`);
+  return extractFunctionAt(source, start, source.indexOf("{", parametersEnd));
 }
 
 function createWriter(execCommandResults) {
@@ -310,6 +311,38 @@ test("LLM bridge remains a compatibility fallback when native fetch is absent", 
   assert.equal(result.transport, "bridge");
   assert.equal(calls.native, 0);
   assert.equal(calls.bridge, 1);
+});
+
+test("LLM bridge errors redact bearer tokens before display", async () => {
+  const source = fs.readFileSync(scriptPath, "utf8");
+  const responseErrorMessage = vm.runInNewContext(`(${extractFunction(source, "responseErrorMessage")})`, {
+    collapseWs(value) {
+      return String(value || "").replace(/\s+/g, " ").trim();
+    },
+  });
+  const functionSource = extractAsyncFunction(source, "requestJsonViaCodexBridge");
+  const requestJsonViaCodexBridge = vm.runInNewContext(`(${functionSource})`, {
+    normalizeBaseUrl(value) {
+      return value;
+    },
+    debugLog() {},
+    REQUEST_TIMEOUT_MS: 60_000,
+    bridgeJson: async () => ({
+      status: "failed",
+      message: "Authorization: Bearer secret-value token=also-secret",
+    }),
+    responseErrorMessage,
+  });
+
+  await assert.rejects(
+    requestJsonViaCodexBridge({ upstreamUrl: "https://example.invalid/v1/chat/completions" }),
+    (error) => {
+      assert.match(error.message, /Authorization=\[REDACTED\]|Bearer \[REDACTED\]/i);
+      assert.match(error.message, /token=\[REDACTED\]/i);
+      assert.doesNotMatch(error.message, /secret-value|also-secret/);
+      return true;
+    },
+  );
 });
 
 test("upstream error messages redact bearer tokens before display", () => {

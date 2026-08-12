@@ -1749,7 +1749,21 @@ author: Codex++ Community
   }
 
   function responseErrorMessage(raw, fallback) {
-    const text = typeof raw === "string" ? raw : "";
+    let text = "";
+    if (typeof raw === "string") {
+      text = raw;
+    } else if (raw && typeof raw === "object") {
+      const nestedMessage = raw?.error?.message || raw?.message || raw?.error;
+      if (typeof nestedMessage === "string") {
+        text = nestedMessage;
+      } else {
+        try {
+          text = JSON.stringify(raw) || "";
+        } catch (_) {
+          text = String(raw);
+        }
+      }
+    }
     const redact = (value) =>
       collapseWs(String(value || ""))
         .replace(/Bearer\s+[^\s,;"}]+/gi, "Bearer [REDACTED]")
@@ -1855,7 +1869,7 @@ author: Codex++ Community
       signal,
     );
     if (!result || result.status !== "ok") {
-      const message = collapseWs(result?.message || result?.error || "LLM Bridge 请求失败");
+      const message = responseErrorMessage(result?.message || result?.error, "LLM Bridge 请求失败");
       if (/unknown bridge path|未知.*bridge/i.test(message)) {
         throw bridgeUnsupportedError();
       }
@@ -1871,8 +1885,8 @@ author: Codex++ Community
       }
     }
     if (result.ok === false || !(httpStatus >= 200 && httpStatus < 300)) {
-      const message = data?.error?.message || data?.message || `HTTP ${httpStatus || "error"}`;
-      throw new Error(collapseWs(message).slice(0, 240));
+      const message = responseErrorMessage(data?.error?.message || data?.message || data?.error, `HTTP ${httpStatus || "error"}`);
+      throw new Error(message);
     }
     return data;
   }
