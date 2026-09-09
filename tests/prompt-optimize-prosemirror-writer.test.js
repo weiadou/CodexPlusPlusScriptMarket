@@ -360,3 +360,10 @@ test("upstream error messages redact bearer tokens before display", () => {
   assert.match(message, /token=\[REDACTED\]/i);
   assert.doesNotMatch(message, /secret-value|also-secret/);
 });
+
+test("optimization uses a bounded timeout and gives immediate loading feedback", () => {
+  const source = fs.readFileSync(scriptPath, "utf8");
+
+  assert.match(source, /const REQUEST_TIMEOUT_MS = 20000/);
+  assert.match(source, /runtime\.loading = true;\s+refreshButtonAppearance\(\);\s+showToast\("正在优化，可再次点击取消", "info"\);/);
+});
