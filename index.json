@@ -224,7 +224,7 @@
       ],
       "homepage": "https://github.com/BigPizzaV3/CodexPlusPlusScriptMarket",
       "script_url": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/prompt-optimize.js",
-      "sha256": "9553ee1b80ff042ac73d32eb061453865039ed3fb66ce012adf10d088d1be6cb"
+      "sha256": "e8fc992b1c005e58b097c31a0c0f99ca016777cc6e6a581c36120b3fc831e620"
     },
     {
       "id": "codex-native-matrix-selector",

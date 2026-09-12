@@ -313,6 +313,34 @@ test("LLM bridge remains a compatibility fallback when native fetch is absent", 
   assert.equal(calls.bridge, 1);
 });
 
+test("native fetch service rejection falls back to the LLM bridge immediately", async () => {
+  const source = fs.readFileSync(scriptPath, "utf8");
+  const functionSource = extractAsyncFunction(source, "requestJson");
+  const calls = { native: 0, bridge: 0 };
+  const requestJson = vm.runInNewContext(`(${functionSource})`, {
+    hasElectronFetchBridge: () => true,
+    electronFetchJson: async () => {
+      calls.native += 1;
+      throw new Error("Error invoking remote method: HTTP requests must use the HTTP fetch service.");
+    },
+    hasCodexPlusBridge: () => true,
+    requestJsonViaCodexBridge: async () => {
+      calls.bridge += 1;
+      return { transport: "bridge" };
+    },
+    collapseWs(value) {
+      return String(value || "").replace(/\s+/g, " ").trim();
+    },
+    debugLog() {},
+  });
+
+  const result = await requestJson({ upstreamUrl: "https://example.invalid/v1/chat/completions" });
+
+  assert.equal(result.transport, "bridge");
+  assert.equal(calls.native, 1);
+  assert.equal(calls.bridge, 1);
+});
+
 test("LLM bridge errors redact bearer tokens before display", async () => {
   const source = fs.readFileSync(scriptPath, "utf8");
   const responseErrorMessage = vm.runInNewContext(`(${extractFunction(source, "responseErrorMessage")})`, {
